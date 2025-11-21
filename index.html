@@ -1,0 +1,435 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RapidBoda — On‑Demand Motorbike‑Taxi & Services</title>
+  <meta name="description" content="Launch-ready single-file demo for an on-demand motorbike-taxi & services platform (Rider, Driver, Admin views) — built for GitHub Pages hosting." />
+  <meta name="theme-color" content="#0b74de" />  <!-- Favicon (inline SVG) -->  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230b74de'/%3E%3Ctext x='50'%20y='57' font-size='36' text-anchor='middle' fill='white' font-family='Arial'%3ERB%3C/text%3E%3C/svg%3E" />  <!-- Leaflet CSS (CDN) -->  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="" crossorigin="" />  <style>
+    /* --- Reset & base --- */
+    :root{--bg:#f6f8fb;--card:#ffffff;--muted:#6b7280;--accent:#0b74de;--success:#16a34a;--danger:#ef4444;--glass:rgba(255,255,255,0.7)}
+    [data-theme='dark']{--bg:#0b1320;--card:#071226;--muted:#9aa4b2;--accent:#3bb0ff;--glass:rgba(10,14,20,0.6)}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial;color:var(--muted);background:linear-gradient(180deg,var(--bg),#fff);min-height:100vh}
+    .container{max-width:1200px;margin:24px auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .brand h1{margin:0;font-size:20px;color:var(--accent)}
+    .chip{background:var(--card);padding:8px;border-radius:12px;box-shadow:0 6px 18px rgba(11,116,222,0.06)}
+
+    /* --- Layout --- */
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:16px;margin-top:18px}
+    @media(max-width:980px){.grid{grid-template-columns:1fr}.right-col{order:2}}
+
+    /* --- Map --- */
+    #map{height:560px;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(2,6,23,0.08)}
+
+    /* --- Controls --- */
+    .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+    .controls .row{display:flex;gap:8px;margin-bottom:8px}
+    .controls input,.controls select{flex:1;padding:10px;border-radius:8px;border:1px solid #e6edf3}
+    .btn{background:var(--accent);color:white;padding:10px 12px;border-radius:10px;border:0;cursor:pointer}
+    .btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+    .muted{color:var(--muted);font-size:13px}
+
+    /* --- Fare card --- */
+    .fare{display:flex;flex-direction:column;gap:6px}
+    .fare .line{display:flex;justify-content:space-between}
+    .big{font-size:20px;color:var(--accent);font-weight:700}
+
+    /* --- Role switch --- */
+    .role-switch{display:flex;gap:8px}
+    .role-pill{padding:8px 12px;border-radius:999px;background:var(--glass);cursor:pointer}
+    .role-pill.active{box-shadow:0 6px 18px rgba(11,116,222,0.12);border:1px solid rgba(11,116,222,0.12)}
+
+    /* --- small elements --- */
+    .meta{font-size:13px;color:var(--muted)}
+    footer{margin-top:20px;text-align:center;color:var(--muted);font-size:13px}
+
+    /* --- Modal --- */
+    .modal{position:fixed;left:0;top:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;background:rgba(3,6,15,0.45)}
+    .modal.active{display:flex}
+    .modal .dialog{width:720px;padding:16px}
+    @media(max-width:760px){.modal .dialog{width:92%}}
+
+    /* --- small utilities --- */
+    .flex{display:flex;align-items:center;gap:8px}
+    .right{margin-left:auto}
+    .badge{padding:4px 8px;border-radius:999px;background:#eef6ff;color:var(--accent);font-weight:600}
+
+    /* --- responsive tweaks --- */
+    @media(max-width:520px){#map{height:360px}.card{padding:10px}}
+
+    /* --- Accessibility helpers --- */
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+    /* --- tiny admin panel --- */
+    .admin-panel{max-height:220px;overflow:auto}
+    .list-item{display:flex;justify-content:space-between;padding:8px;border-bottom:1px dashed #eef3f8}
+  </style></head>
+<body data-theme="light">
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="chip"><strong>RapidBoda</strong></div>
+        <div>
+          <h1>RapidBoda — Motorbike‑Taxi & Services</h1>
+          <div class="meta">Launch demo · Single‑file prototype · GitHub Pages ready</div>
+        </div>
+      </div><div class="flex">
+    <div class="role-switch" id="roleSwitch">
+      <div class="role-pill active" data-role="rider">Rider</div>
+      <div class="role-pill" data-role="driver">Driver</div>
+      <div class="role-pill" data-role="admin">Admin</div>
+    </div>
+    <button class="btn secondary" id="themeToggle">Dark</button>
+  </div>
+</header>
+
+<main class="grid">
+  <section>
+    <div id="map" aria-label="Live map with drivers and route">Map loading...</div>
+
+    <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+      <div class="card" style="flex:1;min-width:240px">
+        <div class="flex"><strong>Quick Actions</strong><div class="right muted">Role: <span id="currentRole">Rider</span></div></div>
+        <div style="margin-top:10px" class="controls">
+          <div class="row">
+            <input id="from" placeholder="Pickup location (tap map or type)" />
+            <input id="to" placeholder="Dropoff location" />
+          </div>
+          <div class="row">
+            <select id="rideType"><option value="bike">Bike‑Taxi (Solo)</option><option value="shared">Shared</option><option value="cargo">Cargo</option></select>
+            <input id="scheduledAt" type="datetime-local" />
+          </div>
+          <div class="row">
+            <button class="btn" id="estimateBtn">Estimate Fare</button>
+            <button class="btn secondary" id="requestBtn">Request Ride</button>
+          </div>
+          <div class="row">
+            <div class="muted">Payment:</div>
+            <select id="paymentMethod"><option>M‑Pesa</option><option>Card</option><option>Wallet</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="min-width:260px;max-width:360px">
+        <div class="fare">
+          <div class="line"><div class="muted">Estimated Fare</div><div class="big" id="fareAmount">KES —</div></div>
+          <div class="line"><div class="muted">Distance</div><div id="fareDistance">— km</div></div>
+          <div class="line"><div class="muted">Time</div><div id="fareTime">— min</div></div>
+          <div class="line"><div class="muted">Surge</div><div id="fareSurge">x1.0</div></div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn" id="trackBtn">Track Driver</button>
+            <button class="btn secondary" id="cancelBtn">Cancel</button>
+          </div>
+          <div style="margin-top:8px" class="muted">Status: <span id="rideStatus">No active ride</span></div>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+  <aside class="right-col">
+    <div class="card">
+      <strong>Profile</strong>
+      <div style="margin-top:8px" class="meta">Login method: <span id="authMethod">Guest</span></div>
+      <div style="margin-top:8px">
+        <input id="name" placeholder="Your name" style="width:100%;padding:8px;border-radius:8px;border:1px solid #eceff3" />
+        <input id="phone" placeholder="Phone (OTP)" style="width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid #eceff3" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" id="otpBtn">Send OTP</button>
+          <button class="btn secondary" id="loginSocial">Social Login</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <strong>Driver Nearby (simulated)</strong>
+      <div class="admin-panel" id="driverList" style="margin-top:10px">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <strong>Admin Snapshot</strong>
+      <div style="margin-top:8px" class="meta">Total Rides: <span id="statRides">0</span></div>
+      <div class="meta">Active Drivers: <span id="statDrivers">0</span></div>
+      <div style="margin-top:8px"><button class="btn" id="openAdmin">Open Admin</button></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  RapidBoda demo • Built for demo & pilot • Features: OTP, dynamic fare, schedule booking, map, driver verification placeholders.
+</footer>
+
+<!-- Modal: admin -->
+<div class="modal" id="adminModal">
+  <div class="dialog card">
+    <div class="flex"><h3>Admin Console</h3><button class="btn secondary right" id="closeAdmin">Close</button></div>
+    <div style="margin-top:12px" class="meta">Role-based access preview • suspend users • promo code engine demo</div>
+    <div style="margin-top:10px">
+      <div class="list-item"><div>Pending driver verifications</div><div><button class="btn" id="verifyAll">Verify All</button></div></div>
+      <div class="list-item"><div>Active promotions</div><div><button class="btn secondary" id="newPromo">Create Promo</button></div></div>
+      <div class="list-item"><div>Revenue (today)</div><div class="big">KES 0</div></div>
+    </div>
+  </div>
+</div>
+
+  </div>  <!-- Inline scripts: Leaflet + app logic -->  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>  <script>
+    /*
+      Single-file prototype script
+      - Simulates many features from the 200-feature list as an interactive demo
+      - Meant to be deployed to GitHub Pages by adding this file as index.html
+      - No backend — uses localStorage & simulated drivers
+    */
+
+    // ---- App state ----
+    const state = {
+      role: 'rider',
+      user: {name:null, phone:null},
+      map: null,
+      drivers: [],
+      activeRide: null,
+      queuedRequests: JSON.parse(localStorage.getItem('rqb')||'[]'),
+      locale: 'en',
+      surgeMultiplier: 1.0
+    };
+
+    // ---- Utilities ----
+    function el(id){return document.getElementById(id)}
+    function fmtKES(n){return 'KES ' + Number(n).toLocaleString();}
+
+    // ---- Theme toggle ----
+    const themeBtn = el('themeToggle');
+    themeBtn.addEventListener('click',()=>{
+      const body = document.body;
+      const next = body.getAttribute('data-theme')==='light'?'dark':'light';
+      body.setAttribute('data-theme',next);
+      themeBtn.textContent = next==='dark'?'Light':'Dark';
+    });
+
+    // ---- Role switch ----
+    document.querySelectorAll('.role-pill').forEach(p=>p.addEventListener('click',e=>{
+      document.querySelectorAll('.role-pill').forEach(x=>x.classList.remove('active'));
+      p.classList.add('active');
+      state.role = p.getAttribute('data-role');
+      el('currentRole').textContent = state.role.charAt(0).toUpperCase()+state.role.slice(1);
+      // small UX changes per role
+      if(state.role==='driver'){el('requestBtn').textContent='Go Online';el('estimateBtn').disabled=true}
+      else{el('requestBtn').textContent='Request Ride';el('estimateBtn').disabled=false}
+    }));
+
+    // ---- Map & simulated drivers ----
+    function initMap(){
+      state.map = L.map('map',{zoomControl:true}).setView([0.515,35.268],13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(state.map);
+
+      // add sample drivers (simulated positions around a center)
+      const center = state.map.getCenter();
+      for(let i=0;i<10;i++){
+        const offsetLat = (Math.random()-0.5)/100; const offsetLng = (Math.random()-0.5)/100;
+        const drv = {id:'D'+(1000+i),lat:center.lat+offsetLat,lng:center.lng+offsetLng,available:Math.random()>0.2,score: (Math.random()*2+3).toFixed(2)};
+        drv.marker = L.marker([drv.lat,drv.lng],{title:drv.id}).addTo(state.map).bindPopup(`<strong>${drv.id}</strong><br/>Rating: ${drv.score}`);
+        state.drivers.push(drv);
+      }
+      refreshDriverList();
+
+      // click to set pickup/dropoff
+      state.map.on('click',function(e){
+        if(!el('from').value) el('from').value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+        else if(!el('to').value) el('to').value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+      });
+    }
+
+    // ---- Driver list UI ----
+    function refreshDriverList(){
+      const container = el('driverList'); container.innerHTML='';
+      state.drivers.forEach(d=>{
+        const div = document.createElement('div'); div.className='list-item';
+        div.innerHTML = `<div>${d.id} <span class='muted'>· ${d.available?'online':'offline'}</span></div><div><button class='btn' data-id='${d.id}'>Request</button></div>`;
+        container.appendChild(div);
+      });
+      el('statDrivers').textContent = state.drivers.filter(d=>d.available).length;
+      container.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{
+        const id=b.getAttribute('data-id'); simulateAssignDriver(id);
+      }));
+    }
+
+    // ---- Fare estimation (dynamic) ----
+    function estimateFare(){
+      const from = el('from').value.trim(); const to = el('to').value.trim();
+      if(!from||!to) return alert('Enter both pickup and dropoff (you can tap the map)');
+      // parse lat,lng or simple text -> simulate
+      const d = calcDistanceLatLng(from,to); // returns km
+      const base = 40; // base fare KES
+      const perKm = 15; const perMin = 3; // rates
+      const estTime = Math.max(3, Math.round(d/0.8*6)); // rough
+      // surge simulation based on hour
+      const hr = new Date().getHours(); let surge = 1.0; if(hr>=7&&hr<=9) surge=1.3; if(hr>=18&&hr<=20) surge=1.6; if(Math.random()<0.06) surge=2.0;
+      state.surgeMultiplier = surge;
+      const fare = Math.max(base, Math.round(((base + d*perKm)+(estTime*perMin))*surge));
+      el('fareAmount').textContent = fmtKES(fare);
+      el('fareDistance').textContent = d.toFixed(2) + ' km';
+      el('fareTime').textContent = estTime + ' min';
+      el('fareSurge').textContent = 'x' + surge.toFixed(2);
+      return {fare, distance:d, time:estTime, surge};
+    }
+
+    // small helper parse lat,lng simple
+    function calcDistanceLatLng(a,b){
+      const pa=a.split(/[ ,]+/).map(Number), pb=b.split(/[ ,]+/).map(Number);
+      if(pa.length>=2 && pb.length>=2 && !isNaN(pa[0]) && !isNaN(pb[0])){
+        const R=6371; const lat1=pa[0]*Math.PI/180; const lat2=pb[0]*Math.PI/180; const dLat=(pb[0]-pa[0])*Math.PI/180; const dLon=(pb[1]-pa[1])*Math.PI/180;
+        const aa = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)*Math.sin(dLon/2);
+        const c = 2*Math.atan2(Math.sqrt(aa),Math.sqrt(1-aa)); return R*c;
+      }
+      // fallback: simulated distance
+      return Math.round((Math.random()*6+1)*100)/100;
+    }
+
+    // ---- Request ride (creates queued request if offline) ----
+    el('estimateBtn').addEventListener('click',()=>{
+      const e = estimateFare(); if(e) console.log('Estimate',e);
+    });
+
+    el('requestBtn').addEventListener('click',()=>{
+      if(state.role==='driver') return goDriverOnline();
+      const from = el('from').value.trim(), to=el('to').value.trim();
+      if(!from||!to) return alert('Set pickup and dropoff');
+      const data = {id:'R'+Date.now(),from,to,rideType:el('rideType').value, payment:el('paymentMethod').value, scheduledAt:el('scheduledAt').value||null, createdAt:new Date().toISOString()};
+      // offline simulation: if no network (navigator.onLine false) queue
+      if(!navigator.onLine){ state.queuedRequests.push(data); localStorage.setItem('rqb',JSON.stringify(state.queuedRequests)); el('rideStatus').textContent='Queued (offline)'; return; }
+      // otherwise attempt assignment
+      attemptAssign(data);
+    });
+
+    function attemptAssign(req){
+      el('rideStatus').textContent='Searching for drivers...';
+      // shortlist nearest available driver
+      const available = state.drivers.filter(d=>d.available);
+      if(!available.length){ el('rideStatus').textContent='No drivers available — try later'; return; }
+      // choose nearest by simple euclidean
+      const pick = available[Math.floor(Math.random()*available.length)];
+      // compute match score
+      const score = computeMatchScore(pick,req);
+      // assign
+      setTimeout(()=>simulateAssignDriver(pick.id,req,score),1200);
+    }
+
+    function computeMatchScore(driver,req){
+      // simplified from feature 125
+      const base = Number(driver.score)||4.0; const acceptance = Math.random(); const cancelHistory = Math.random();
+      const distFactor = 1.0; const score = Math.round((base*20 + acceptance*30 + (1-cancelHistory)*20 + (1-distFactor)*30)/1);
+      return Math.min(100,Math.max(10,Math.round(score/1.2))); // normalized 0-100
+    }
+
+    function simulateAssignDriver(driverId,req=null,score=85){
+      const driver = state.drivers.find(d=>d.id===driverId); if(!driver) return;
+      // if invoked by driver list button, create a small request
+      if(!req) req = {id:'R'+Date.now(),from:el('from').value||'unknown',to:el('to').value||'unknown',rideType:'bike', payment:'M‑Pesa',createdAt:new Date().toISOString()};
+      driver.available=false; refreshDriverList();
+      el('rideStatus').textContent=`Driver ${driver.id} assigned • Match ${score}`;
+      state.activeRide = {id:req.id,driver:driver.id,from:req.from,to:req.to,assignedAt:new Date().toISOString()};
+      el('trackBtn').disabled=false;
+      // animate marker to route (simple)
+      let step=0; const steps=40; const fromLatLng = state.map.getCenter(); const start=[fromLatLng.lat,fromLatLng.lng]; const end=[driver.lat,driver.lng];
+      const interval = setInterval(()=>{
+        step++; const lat = start[0] + (end[0]-start[0])*(step/steps); const lng = start[1] + (end[1]-start[1])*(step/steps);
+        driver.marker.setLatLng([lat,lng]); if(step>=steps){clearInterval(interval); el('rideStatus').textContent='Driver arrived — ride in progress'; setTimeout(()=>completeRide(driver),15000);} },200);
+    }
+
+    function completeRide(driver){
+      el('rideStatus').textContent='Ride completed — awaiting rating'; driver.available=true; refreshDriverList();
+      // create receipt
+      const amt = Math.round(Math.random()*400)+50; el('fareAmount').textContent = fmtKES(amt);
+      el('statRides').textContent = Number(el('statRides').textContent||0)+1;
+      // prompt rating
+      setTimeout(()=>{const r = prompt('Rate your driver (1-5)'); console.log('User rated',r);},800);
+      // publish to ledger (local)
+      state.activeRide = null;
+    }
+
+    function goDriverOnline(){
+      alert('Driver toggled online — you will receive requests here (simulated)');
+    }
+
+    // ---- Offline queue processor ----
+    window.addEventListener('online',()=>{
+      if(state.queuedRequests.length){
+        const q = state.queuedRequests.shift(); localStorage.setItem('rqb',JSON.stringify(state.queuedRequests)); attemptAssign(q);
+      }
+    });
+
+    // ---- Simple OTP simulation ----
+    el('otpBtn').addEventListener('click',()=>{
+      const phone = el('phone').value.trim(); const name = el('name').value.trim()||'Guest';
+      if(!phone) return alert('Enter phone number');
+      const code = Math.floor(100000+Math.random()*900000); localStorage.setItem('otp',code);
+      alert('Simulated OTP sent: ' + code);
+      const entered = prompt('Enter OTP'); if(String(entered)===String(code)){ state.user.name=name; state.user.phone=phone; el('authMethod').textContent='OTP'; alert('Logged in as '+name);} else alert('OTP mismatch');
+    });
+
+    el('loginSocial').addEventListener('click',()=>{ alert('Simulated social login — feature hooks for OAuth'); el('authMethod').textContent='Social'; });
+
+    // ---- Admin modal handlers ----
+    el('openAdmin').addEventListener('click',()=>el('adminModal').classList.add('active'));
+    el('closeAdmin').addEventListener('click',()=>el('adminModal').classList.remove('active'));
+    el('verifyAll').addEventListener('click',()=>{ alert('All pending drivers verified (simulated)'); });
+    el('newPromo').addEventListener('click',()=>{ const code = prompt('Promo code name'); if(code) alert('Promo '+code+' created (simulated)'); });
+
+    // ---- Service worker & PWA manifest (generated on the fly to keep single‑file) ----
+    function registerPWA(){
+      try{
+        // create manifest blob
+        const manifest = {name:'RapidBoda',short_name:'RapidBoda',start_url:'.',display:'standalone',background_color:'#ffffff',theme_color:'#0b74de',icons:[{src:'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'48\' fill=\'%230b74de\'/%3E%3C/text%3E%3C/svg%3E',sizes:'192x192',type:'image/svg+xml'}]};
+        const blob = new Blob([JSON.stringify(manifest)],{type:'application/json'}); const url = URL.createObjectURL(blob);
+        const link = document.createElement('link'); link.rel='manifest'; link.href=url; document.head.appendChild(link);
+
+        if('serviceWorker' in navigator){
+          const swCode = `self.addEventListener('install',e=>{self.skipWaiting();console.log('SW installed');});self.addEventListener('activate',e=>{console.log('SW active');});self.addEventListener('fetch',e=>{/* basic offline: try network then cache (no cache here) */});`;
+          const swBlob = new Blob([swCode],{type:'application/javascript'}); const swUrl = URL.createObjectURL(swBlob);
+          navigator.serviceWorker.register(swUrl).then(()=>console.log('SW registered')).catch(err=>console.warn('SW failed',err));
+        }
+      }catch(e){console.warn('PWA create failed',e)}
+    }
+
+    // ---- Small accessibility helpers (voice reminders) ----
+    function speak(text){ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(text); window.speechSynthesis.speak(u); } }
+    el('trackBtn').addEventListener('click',()=>{ if(!state.activeRide) return alert('No active ride to track'); speak('Driver is 2 minutes away'); });
+
+    // ---- init ----
+    window.addEventListener('load',()=>{ initMap(); registerPWA(); el('trackBtn').disabled=true; el('cancelBtn').addEventListener('click',()=>{ if(confirm('Cancel ride?')){ el('rideStatus').textContent='Ride cancelled'; state.activeRide=null; } });
+      // show queued
+      if(state.queuedRequests.length) el('rideStatus').textContent = state.queuedRequests.length + ' queued requests (offline)';
+    });
+
+    // ---- Small demo helpers: export JSON of drivers & rides for admin (simulate API export) ----
+    function exportCSV(){
+      const rows = [['id','lat','lng','available','score']].concat(state.drivers.map(d=>[d.id,d.lat,d.lng,d.available,d.score]));
+      const csv = rows.map(r=>r.join(',')).join('\n'); const blob = new Blob([csv],{type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='drivers.csv'; a.click();
+    }
+
+    // keyboard quick actions for demo
+    window.addEventListener('keydown',(e)=>{ if(e.key==='e') estimateFare(); if(e.key==='x') exportCSV(); });
+
+  </script>  <!-- Deployment notes (in-file README) -->  <!--
+    RapidBoda Single-file Launch Instructions:
+    1. Save this file as index.html
+    2. Create a new GitHub repo (public or private), then push index.html to the main branch
+    3. In GitHub repo settings > Pages: set source to main branch / root and save — your site will be available at https://<your-username>.github.io/<repo>/
+    4. This prototype is frontend-only. Replace simulated logic with real APIs for production: user auth, payments (M-Pesa/Flutterwave/Stripe), driver verification workflows, real-time locations via sockets (Socket.IO / WebSockets), backend microservices for ride-matching, and database for persistence.
+
+    MVP mapping suggestions:
+      - Core (MVP): Real-time GPS, dynamic fare, rider/driver roles, booking flow, payments integration (M-Pesa), OTP login.
+      - Phase 2: Scheduling, multi-stop, wallet, promotions, driver incentives, admin dashboard.
+      - Phase 3: AI route optimization, fraud detection, third-party integrations, multi-region deployments.
+
+    Security & compliance reminders:
+      - Do not store sensitive data in localStorage for production
+      - Use HTTPS, secure cookies, OAuth2 for auth
+      - Ensure PCI-DSS compliance for card payments
+  --></body>
+</html>
